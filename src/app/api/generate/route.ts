@@ -115,8 +115,11 @@ export async function POST(request: NextRequest) {
     const ai = new GoogleGenAI({ apiKey })
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+      },
     })
 
     const rawText = response.text
@@ -127,13 +130,12 @@ export async function POST(request: NextRequest) {
     // Step 4: Parse JSON response
     let generatedPost: GeneratedPost
     try {
-      // Strip markdown code fences if model adds them despite instructions
-      const cleaned = rawText
-        .replace(/^```(?:json)?\n?/i, '')
-        .replace(/\n?```$/i, '')
-        .trim()
+      // Strip markdown code fences if present
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+      const cleaned = jsonMatch ? jsonMatch[0] : rawText.trim()
       generatedPost = JSON.parse(cleaned)
     } catch {
+      console.error('JSON parse failed. Raw text:', rawText.substring(0, 500))
       return NextResponse.json(
         { error: 'Failed to parse AI response as JSON' },
         { status: 500 }
