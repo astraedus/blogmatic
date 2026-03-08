@@ -75,5 +75,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Increment posts_generated_this_month for manual saves
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('posts_generated_this_month')
+    .eq('id', user.id)
+    .single()
+
+  if (profile) {
+    await supabase
+      .from('profiles')
+      .update({
+        posts_generated_this_month: (profile.posts_generated_this_month ?? 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id)
+  }
+
   return NextResponse.json({ post: data }, { status: 201 })
 }

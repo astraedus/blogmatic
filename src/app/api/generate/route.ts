@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
 import { analyzeSite } from '@/lib/analyzer'
+import { createClient } from '@/lib/supabase/server'
 
 export interface GenerateRequest {
   url: string
@@ -65,18 +66,44 @@ Return ONLY valid JSON (no markdown code fences, no explanation) in this exact f
 
 export async function POST(request: NextRequest) {
   try {
+    // Auth check
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Fetch user profile for usage check
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('posts_generated_this_month, monthly_post_limit, plan')
+      .eq('id', user.id)
+      .single()
+
+    if (profile) {
+      const used = profile.posts_generated_this_month ?? 0
+      const limit = profile.monthly_post_limit ?? 3
+      if (used >= limit) {
+        return NextResponse.json(
+          { error: 'Monthly post limit reached. Upgrade your plan.', upgrade: true },
+          { status: 403 }
+        )
+      }
+    }
+
     const body: GenerateRequest = await request.json()
     const { url, topic, keywords: userKeywords, tone: userTone } = body
 
     if (!url) {
-      return NextResponse.json({ error: 'URL is required' }, { status: 400 })
+      return NextResponse.json({ error: 'URL is required' }, { status: 422 })
     }
 
     // Validate URL
     try {
       new URL(url)
     } catch {
-      return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid URL' }, { status: 422 })
     }
 
     // Step 1: Analyze the site
@@ -141,6 +168,15 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Step 5: Increment usage counter
+    await supabase
+      .from('profiles')
+      .update({
+        posts_generated_this_month: (profile?.posts_generated_this_month ?? 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id)
 
     return NextResponse.json({
       ...generatedPost,

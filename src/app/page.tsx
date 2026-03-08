@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { createClient } from '@/lib/supabase/client'
 
 const FEATURES = [
   {
@@ -76,8 +77,9 @@ const PLANS = [
       'Markdown export',
       'SEO score analysis',
     ],
-    cta: 'Get started free',
-    ctaHref: '/auth/signup',
+    cta: 'Get Started',
+    priceId: null,
+    signupHref: '/auth/signup',
     highlight: false,
   },
   {
@@ -86,15 +88,16 @@ const PLANS = [
     period: 'per month',
     description: 'For founders and solo marketers scaling content.',
     features: [
-      '50 posts per month',
+      '20 posts per month',
       '5 connected sites',
       'All export formats',
       'Priority generation',
       'Keyword research',
       'Custom tone settings',
     ],
-    cta: 'Start Pro trial',
-    ctaHref: '/auth/signup?plan=pro',
+    cta: 'Subscribe',
+    priceId: 'price_1T8pff5hmcn4NulJ6g7pLnBS',
+    signupHref: '/auth/signup?plan=pro',
     highlight: true,
   },
   {
@@ -103,15 +106,16 @@ const PLANS = [
     period: 'per month',
     description: 'For agencies managing multiple client sites.',
     features: [
-      '200 posts per month',
+      '100 posts per month',
       'Unlimited sites',
       'White-label exports',
       'Team seats (3)',
       'Priority support',
       'Bulk scheduling',
     ],
-    cta: 'Start Agency trial',
-    ctaHref: '/auth/signup?plan=agency',
+    cta: 'Subscribe',
+    priceId: 'price_1T8pfm5hmcn4NulJD9WajWNy',
+    signupHref: '/auth/signup?plan=agency',
     highlight: false,
   },
 ]
@@ -138,12 +142,41 @@ export default function LandingPage() {
   const router = useRouter()
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
+  const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null)
 
   function handleGenerate(e: React.FormEvent) {
     e.preventDefault()
     if (!url.trim()) return
     setLoading(true)
     router.push(`/auth/signup?url=${encodeURIComponent(url)}`)
+  }
+
+  async function handleSubscribe(priceId: string, signupHref: string) {
+    setSubscribingPlan(priceId)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push(signupHref)
+        return
+      }
+
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId }),
+      })
+
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (err) {
+      console.error('Checkout error:', err)
+    } finally {
+      setSubscribingPlan(null)
+    }
   }
 
   return (
@@ -188,7 +221,7 @@ export default function LandingPage() {
       <section className="relative z-10 pt-24 pb-20 px-6 text-center">
         <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 mb-8 text-sm text-gray-300">
           <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-          Powered by Gemini 2.0 Flash
+          Powered by Gemini 2.5 Flash
         </div>
 
         <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 max-w-4xl mx-auto">
@@ -337,8 +370,10 @@ export default function LandingPage() {
                   ))}
                 </ul>
 
-                <Link href={plan.ctaHref}>
+                {plan.priceId ? (
                   <Button
+                    onClick={() => handleSubscribe(plan.priceId!, plan.signupHref)}
+                    disabled={subscribingPlan === plan.priceId}
                     className={`w-full h-11 font-medium ${
                       plan.highlight
                         ? 'bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white border-0'
@@ -346,9 +381,18 @@ export default function LandingPage() {
                     }`}
                     variant={plan.highlight ? 'default' : 'outline'}
                   >
-                    {plan.cta}
+                    {subscribingPlan === plan.priceId ? 'Loading...' : plan.cta}
                   </Button>
-                </Link>
+                ) : (
+                  <Link href={plan.signupHref}>
+                    <Button
+                      className="w-full h-11 font-medium bg-white/5 hover:bg-white/10 text-white border-white/20 hover:border-white/30"
+                      variant="outline"
+                    >
+                      {plan.cta}
+                    </Button>
+                  </Link>
+                )}
               </div>
             ))}
           </div>
@@ -393,7 +437,7 @@ export default function LandingPage() {
           </div>
 
           <p className="text-gray-600 text-sm">
-            2024 Blogmatic. All rights reserved.
+            2026 Blogmatic. All rights reserved.
           </p>
         </div>
       </footer>
