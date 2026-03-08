@@ -31,6 +31,11 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // Skip auth for webhook routes (Stripe calls these directly)
+  if (pathname.startsWith('/api/webhook')) {
+    return supabaseResponse
+  }
+
   // Protect dashboard routes
   if (pathname.startsWith('/dashboard') && !user) {
     const loginUrl = request.nextUrl.clone()
