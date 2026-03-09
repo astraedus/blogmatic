@@ -28,7 +28,7 @@ CREATE TABLE public.sites (
 CREATE TABLE public.posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  site_id UUID REFERENCES public.sites(id) ON DELETE CASCADE NOT NULL,
+  site_id UUID REFERENCES public.sites(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   slug TEXT NOT NULL,
   meta_description TEXT,
